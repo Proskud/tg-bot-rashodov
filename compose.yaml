@@ -1,0 +1,10 @@
+services:
+  bot:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - expense_data:/app/data
+
+volumes:
+  expense_data:

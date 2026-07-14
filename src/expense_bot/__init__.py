@@ -1,0 +1,1 @@
+"""Personal expense Telegram bot."""
