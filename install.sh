@@ -3,8 +3,9 @@
 set -Eeuo pipefail
 
 readonly PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly ENV_FILE="${PROJECT_DIR}/.env"
+readonly ENV_FILE="${EXPENSE_BOT_ENV_FILE:-${PROJECT_DIR}/.env}"
 COMPOSE=()
+TTY_STATE=''
 
 info() {
   printf '\n\033[1;34m%s\033[0m\n' "$*"
@@ -39,36 +40,89 @@ self_test() {
 }
 
 require_tty() {
-  [[ -r /dev/tty && -w /dev/tty ]] || fail \
+  [[ -t 0 && -r /dev/tty && -w /dev/tty ]] || fail \
     'нужен интерактивный терминал для безопасного ввода токена и Telegram ID.'
-  exec 3<>/dev/tty
+
+  TTY_STATE="$(stty -g </dev/tty)" || fail 'не удалось определить режим терминала.'
+  trap restore_tty EXIT
+  trap 'handle_interrupt INT 130' INT
+  trap 'handle_interrupt TERM 143' TERM
+  trap 'handle_interrupt HUP 129' HUP
+}
+
+restore_tty() {
+  [[ -n "$TTY_STATE" ]] || return 0
+  stty "$TTY_STATE" </dev/tty 2>/dev/null || true
+}
+
+handle_interrupt() {
+  local signal_name="$1"
+  local exit_code="$2"
+
+  restore_tty
+  printf '\nУстановка прервана (%s).\n' "$signal_name" >&2
+  exit "$exit_code"
+}
+
+read_line() {
+  local destination="$1"
+  local read_line_value=''
+  local read_line_chunk read_line_status
+
+  # A finite timeout lets Bash run pending signal traps even on terminals where
+  # an external SIGINT does not immediately interrupt the read builtin.
+  while true; do
+    read_line_chunk=''
+    if IFS= read -r -t 1 read_line_chunk; then
+      read_line_value+="$read_line_chunk"
+      printf -v "$destination" '%s' "$read_line_value"
+      return 0
+    else
+      read_line_status=$?
+    fi
+
+    read_line_value+="$read_line_chunk"
+    if (( read_line_status > 128 )); then
+      continue
+    fi
+    return "$read_line_status"
+  done
 }
 
 prompt_secret() {
-  local prompt="$1"
-  local value
+  local destination="$1"
+  local prompt="$2"
+  local secret_input
 
-  printf '%s' "$prompt" >&3
-  IFS= read -r -s -u 3 value
-  printf '\n' >&3
-  printf '%s' "$value"
+  stty -echo </dev/tty
+  printf '%s' "$prompt" >&2
+  if ! read_line secret_input; then
+    restore_tty
+    fail 'ввод токена прерван.'
+  fi
+  restore_tty
+  printf '\n' >&2
+  printf -v "$destination" '%s' "$secret_input"
 }
 
 prompt_value() {
-  local prompt="$1"
-  local default_value="${2:-}"
-  local value
+  local destination="$1"
+  local prompt="$2"
+  local default_value="${3:-}"
+  local plain_input
 
-  printf '%s' "$prompt" >&3
-  IFS= read -r -u 3 value
-  printf '%s' "${value:-$default_value}"
+  printf '%s' "$prompt" >&2
+  if ! read_line plain_input; then
+    fail 'интерактивный ввод прерван.'
+  fi
+  printf -v "$destination" '%s' "${plain_input:-$default_value}"
 }
 
 configure_env() {
   local token ids_input ids overwrite
 
   if [[ -f "$ENV_FILE" ]]; then
-    overwrite="$(prompt_value 'Файл .env уже существует. Настроить заново? [y/N]: ' 'n')"
+    prompt_value overwrite 'Файл .env уже существует. Настроить заново? [y/N]: ' 'n'
     if [[ ! "$overwrite" =~ ^[YyДд]$ ]]; then
       info 'Существующая конфигурация сохранена.'
       return
@@ -76,17 +130,17 @@ configure_env() {
   fi
 
   while true; do
-    token="$(prompt_secret 'Токен Telegram-бота от @BotFather: ')"
+    prompt_secret token 'Токен Telegram-бота от @BotFather: '
     validate_token "$token" && break
-    printf 'Формат токена не распознан. Попробуйте ещё раз.\n' >&3
+    printf 'Формат токена не распознан. Попробуйте ещё раз.\n' >&2
   done
 
   while true; do
-    ids_input="$(prompt_value 'Разрешённые Telegram ID через запятую: ')"
+    prompt_value ids_input 'Разрешённые Telegram ID через запятую: '
     if ids="$(normalize_ids "$ids_input")"; then
       break
     fi
-    printf 'Укажите один или несколько числовых ID, например: 123456789,987654321\n' >&3
+    printf 'Укажите один или несколько числовых ID, например: 123456789,987654321\n' >&2
   done
 
   umask 077
@@ -185,6 +239,11 @@ main() {
   require_tty
   info 'Настройка Telegram-бота для учёта расходов'
   configure_env
+
+  if [[ "${1:-}" == '--configure-only' ]]; then
+    return
+  fi
+
   detect_compose
   deploy
 }

@@ -51,7 +51,10 @@ main() {
   require_root
   ensure_git
   download_project
-  exec bash "${INSTALL_DIR}/install.sh"
+
+  [[ -r /dev/tty && -w /dev/tty ]] || fail \
+    'нужен интерактивный терминал для безопасного ввода токена и Telegram ID.'
+  exec bash "${INSTALL_DIR}/install.sh" </dev/tty
 }
 
 main "$@"
