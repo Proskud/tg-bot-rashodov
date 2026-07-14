@@ -40,10 +40,12 @@ self_test() {
 }
 
 require_tty() {
-  [[ -t 0 && -r /dev/tty && -w /dev/tty ]] || fail \
+  [[ -r /dev/tty && -w /dev/tty ]] || fail \
     'нужен интерактивный терминал для безопасного ввода токена и Telegram ID.'
 
-  TTY_STATE="$(stty -g </dev/tty)" || fail 'не удалось определить режим терминала.'
+  exec 3<>/dev/tty
+  [[ -t 3 ]] || fail 'не удалось подключиться к интерактивному терминалу.'
+  TTY_STATE="$(stty -g <&3)" || fail 'не удалось определить режим терминала.'
   trap restore_tty EXIT
   trap 'handle_interrupt INT 130' INT
   trap 'handle_interrupt TERM 143' TERM
@@ -52,7 +54,7 @@ require_tty() {
 
 restore_tty() {
   [[ -n "$TTY_STATE" ]] || return 0
-  stty "$TTY_STATE" </dev/tty 2>/dev/null || true
+  stty "$TTY_STATE" <&3 2>/dev/null || true
 }
 
 handle_interrupt() {
@@ -64,44 +66,19 @@ handle_interrupt() {
   exit "$exit_code"
 }
 
-read_line() {
-  local destination="$1"
-  local read_line_value=''
-  local read_line_chunk read_line_status
-
-  # A finite timeout lets Bash run pending signal traps even on terminals where
-  # an external SIGINT does not immediately interrupt the read builtin.
-  while true; do
-    read_line_chunk=''
-    if IFS= read -r -t 1 read_line_chunk; then
-      read_line_value+="$read_line_chunk"
-      printf -v "$destination" '%s' "$read_line_value"
-      return 0
-    else
-      read_line_status=$?
-    fi
-
-    read_line_value+="$read_line_chunk"
-    if (( read_line_status > 128 )); then
-      continue
-    fi
-    return "$read_line_status"
-  done
-}
-
 prompt_secret() {
   local destination="$1"
   local prompt="$2"
   local secret_input
 
-  stty -echo </dev/tty
-  printf '%s' "$prompt" >&2
-  if ! read_line secret_input; then
+  stty -echo <&3
+  printf '%s' "$prompt" >&3
+  if ! IFS= read -r -u 3 secret_input; then
     restore_tty
     fail 'ввод токена прерван.'
   fi
   restore_tty
-  printf '\n' >&2
+  printf '\n' >&3
   printf -v "$destination" '%s' "$secret_input"
 }
 
@@ -111,8 +88,8 @@ prompt_value() {
   local default_value="${3:-}"
   local plain_input
 
-  printf '%s' "$prompt" >&2
-  if ! read_line plain_input; then
+  printf '%s' "$prompt" >&3
+  if ! IFS= read -r -u 3 plain_input; then
     fail 'интерактивный ввод прерван.'
   fi
   printf -v "$destination" '%s' "${plain_input:-$default_value}"

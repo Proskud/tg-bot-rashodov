@@ -25,7 +25,7 @@
 Для чистого сервера на Ubuntu или Debian выполните:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Proskud/tg-bot-rashodov/main/bootstrap.sh | sudo bash
+(install_script="$(mktemp)" && trap 'rm -f "$install_script"' EXIT && curl -fsSL https://raw.githubusercontent.com/Proskud/tg-bot-rashodov/main/bootstrap.sh -o "$install_script" && sudo bash "$install_script")
 ```
 
 Установщик без вывода токена запросит:
@@ -46,7 +46,7 @@ git clone --depth 1 https://github.com/Proskud/tg-bot-rashodov.git && sudo bash 
 ### Обновление и повторная настройка
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Proskud/tg-bot-rashodov/main/bootstrap.sh | sudo bash
+(install_script="$(mktemp)" && trap 'rm -f "$install_script"' EXIT && curl -fsSL https://raw.githubusercontent.com/Proskud/tg-bot-rashodov/main/bootstrap.sh -o "$install_script" && sudo bash "$install_script")
 ```
 
 Bootstrap-скрипт обновит проект через `git pull --ff-only`. Если `.env` уже существует, установщик предложит оставить текущую конфигурацию или ввести значения заново.
