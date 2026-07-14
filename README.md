@@ -5,6 +5,7 @@
 [![CI](https://github.com/Proskud/tg-bot-rashodov/actions/workflows/ci.yml/badge.svg)](https://github.com/Proskud/tg-bot-rashodov/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/release/python-3120/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 `Expense Tracker Bot` принимает расходы в свободной форме, сам выделяет сумму, дату и предполагаемую категорию. Он работает по локальным правилам: внутри нет OpenAI API, LLM или передачи финансовых данных сторонним сервисам.
 
@@ -24,31 +25,36 @@
 Для чистого сервера на Ubuntu или Debian выполните:
 
 ```bash
-git clone --depth 1 https://github.com/Proskud/tg-bot-rashodov.git && sudo bash tg-bot-rashodov/install.sh
+curl -fsSL https://raw.githubusercontent.com/Proskud/tg-bot-rashodov/main/bootstrap.sh | sudo bash
 ```
 
 Установщик без вывода токена запросит:
 
 1. токен Telegram-бота от [@BotFather](https://t.me/BotFather);
 2. один или несколько разрешённых Telegram ID через запятую;
-3. часовой пояс, валюту и час автоматической рассылки отчёта.
 
-Он создаст `.env` с правами `600`, при необходимости установит Docker и Docker Compose из системных пакетов Ubuntu/Debian, соберёт образ и запустит бота. Токен не передаётся через аргументы команд и не попадает в историю терминала.
+Он скачает проект в `/opt/tg-bot-rashodov`, создаст `.env` с правами `600`, при необходимости установит Git, Docker и Docker Compose из системных пакетов Ubuntu/Debian, соберёт образ и запустит бота. Токен не передаётся через аргументы команд и не попадает в историю терминала. GitHub-логин и пароль не требуются.
 
-> Репозиторий приватный. До клонирования у сервера должен быть доступ к GitHub — через HTTPS credentials/PAT или SSH-ключ. Для публичного репозитория эта команда работает без авторизации.
+По умолчанию используются `Asia/Yekaterinburg`, `RUB` и отправка автоматического отчёта в `20:00`. При необходимости измените `TIMEZONE`, `CURRENCY` и `MONTHLY_REPORT_HOUR` в `/opt/tg-bot-rashodov/.env`, затем перезапустите контейнер.
+
+Альтернативная установка через Git также работает без авторизации:
+
+```bash
+git clone --depth 1 https://github.com/Proskud/tg-bot-rashodov.git && sudo bash tg-bot-rashodov/install.sh
+```
 
 ### Обновление и повторная настройка
 
 ```bash
-cd tg-bot-rashodov && git pull --ff-only && sudo bash install.sh
+curl -fsSL https://raw.githubusercontent.com/Proskud/tg-bot-rashodov/main/bootstrap.sh | sudo bash
 ```
 
-Если `.env` уже существует, установщик предложит оставить текущую конфигурацию или ввести значения заново.
+Bootstrap-скрипт обновит проект через `git pull --ff-only`. Если `.env` уже существует, установщик предложит оставить текущую конфигурацию или ввести значения заново.
 
 ### Проверка после установки
 
 ```bash
-cd tg-bot-rashodov
+cd /opt/tg-bot-rashodov
 sudo docker compose ps
 sudo docker compose logs -f bot
 ```
@@ -174,10 +180,9 @@ src/expense_bot/
 alembic/             # миграции схемы
 tests/               # тесты правил, отчётов и доступа
 install.sh           # интерактивная серверная установка
+bootstrap.sh         # загрузка и запуск установщика одной командой
 ```
 
 ## Релизы
 
-Текущий релиз: [v0.1.0](CHANGELOG.md#010---2026-07-14). История изменений — в [CHANGELOG.md](CHANGELOG.md).
-
-Перед публикацией репозитория измените или добавьте лицензию, если хотите предоставить третьим лицам права на использование кода.
+Текущий релиз: [v0.1.0](CHANGELOG.md#010---2026-07-14). История изменений — в [CHANGELOG.md](CHANGELOG.md). Проект распространяется по [MIT License](LICENSE).

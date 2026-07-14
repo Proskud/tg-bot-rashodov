@@ -30,16 +30,11 @@ normalize_ids() {
   printf '%s' "$value"
 }
 
-validate_timezone() {
-  [[ "$1" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)+$ ]]
-}
-
 self_test() {
   validate_token '123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcd' || fail 'self-test token'
   ! validate_token 'not-a-token' || fail 'self-test invalid token'
   [[ "$(normalize_ids '123, 456,789')" == '123,456,789' ]] || fail 'self-test IDs'
   ! normalize_ids '123,user' >/dev/null || fail 'self-test invalid IDs'
-  validate_timezone 'Asia/Yekaterinburg' || fail 'self-test timezone'
   success 'Self-test установщика пройден.'
 }
 
@@ -70,7 +65,7 @@ prompt_value() {
 }
 
 configure_env() {
-  local token ids_input ids timezone currency report_hour overwrite
+  local token ids_input ids overwrite
 
   if [[ -f "$ENV_FILE" ]]; then
     overwrite="$(prompt_value 'Файл .env уже существует. Настроить заново? [y/N]: ' 'n')"
@@ -94,27 +89,6 @@ configure_env() {
     printf 'Укажите один или несколько числовых ID, например: 123456789,987654321\n' >&3
   done
 
-  while true; do
-    timezone="$(prompt_value 'Часовой пояс [Asia/Yekaterinburg]: ' 'Asia/Yekaterinburg')"
-    validate_timezone "$timezone" && break
-    printf 'Используйте IANA-формат, например Europe/Moscow.\n' >&3
-  done
-
-  while true; do
-    currency="$(prompt_value 'Валюта [RUB]: ' 'RUB')"
-    currency="${currency^^}"
-    [[ "$currency" =~ ^[A-Z]{3}$ ]] && break
-    printf 'Укажите трёхбуквенный код валюты, например RUB или USD.\n' >&3
-  done
-
-  while true; do
-    report_hour="$(prompt_value 'Час ежемесячного отчёта, 0–23 [20]: ' '20')"
-    if [[ "$report_hour" =~ ^([0-9]|1[0-9]|2[0-3])$ ]]; then
-      break
-    fi
-    printf 'Введите целое число от 0 до 23.\n' >&3
-  done
-
   umask 077
   local temp_env="${ENV_FILE}.tmp.$$"
   trap 'rm -f "${temp_env:-}"' RETURN
@@ -122,9 +96,9 @@ configure_env() {
     printf 'TELEGRAM_BOT_TOKEN=%s\n' "$token"
     printf 'ALLOWED_TELEGRAM_USER_IDS=%s\n' "$ids"
     printf 'DATABASE_URL=sqlite+aiosqlite:///./data/expenses.db\n'
-    printf 'TIMEZONE=%s\n' "$timezone"
-    printf 'CURRENCY=%s\n' "$currency"
-    printf 'MONTHLY_REPORT_HOUR=%s\n' "$report_hour"
+    printf 'TIMEZONE=Asia/Yekaterinburg\n'
+    printf 'CURRENCY=RUB\n'
+    printf 'MONTHLY_REPORT_HOUR=20\n'
     printf 'LOG_LEVEL=INFO\n'
   } >"$temp_env"
   chmod 600 "$temp_env"
